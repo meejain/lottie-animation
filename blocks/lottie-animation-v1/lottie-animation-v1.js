@@ -123,9 +123,14 @@ function expandTmCycles(data) {
  * Remove any remaining .x (expression) properties so lottie-web does not run the expression
  * evaluator on EDS (which can silently fail and produce empty SVG). We already expanded
  * loopOut in expandTmCycles; this strips wiggle, valueAtTime, etc. so they don't crash.
+ * When we hit a cycle we still strip .x on that object so every node gets cleaned.
  */
 function stripRemainingExpressions(obj, seen = new Set()) {
-  if (!obj || typeof obj !== 'object' || seen.has(obj)) return;
+  if (!obj || typeof obj !== 'object') return;
+  if (seen.has(obj)) {
+    if (!Array.isArray(obj) && 'x' in obj && typeof obj.x === 'string') delete obj.x;
+    return;
+  }
   seen.add(obj);
   if (Array.isArray(obj)) {
     obj.forEach((item) => stripRemainingExpressions(item, seen));

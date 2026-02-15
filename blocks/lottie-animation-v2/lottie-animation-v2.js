@@ -1,10 +1,11 @@
 /**
- * Lottie animation block — EDS/DA.
- * Authors set animation path/URL in block table: animation | /video/dop.json (or full URL).
+ * Lottie animation block (v2) — Voice / EDS/DA.
+ * Pattern from https://www.getswivel.io/ (e-lottie__animation, viewBox 610×352).
+ * Authors set animation path/URL in block table: animation | URL or path.
  *
  * EDS: Uses lottie-web SVG renderer only (no <lottie-player> — Shadow DOM/WASM fails on EDS CSP).
- * AE expressions (e.g. loopOut('cycle')) are expanded to keyframes; other expressions are stripped.
- * Debug: ?lottie=immediate; window.lottie.getRegisteredAnimations(); #lottie-main-* .lottie-inner height.
+ * AE expressions (e.g. loopOut('cycle')) are expanded to keyframes so the expression evaluator is not used.
+ * Debug: ?lottie=immediate for immediate load; window.lottie.getRegisteredAnimations() to confirm load.
  */
 import { readBlockConfig } from '../../scripts/aem.js';
 
@@ -33,11 +34,6 @@ function loadScript(src) {
   });
 }
 
-/**
- * Wait for window.lottie to be set by lottie-web (script may set it after onload).
- * @param {number} maxMs
- * @returns {Promise<void>}
- */
 function waitForLottie(maxMs = 5000) {
   if (window.lottie && typeof window.lottie.loadAnimation === 'function') {
     return Promise.resolve();
@@ -75,14 +71,6 @@ function toAbsoluteJsonUrl(url) {
   }
 }
 
-/**
- * Expand loopOut('cycle') tm expressions into explicit keyframes.
- *
- * lottie-web's expression evaluator silently fails on EDS, crashing the
- * SVG element builder.  Instead of stripping the expression (which kills
- * the cycling animation), we replicate the loopOut('cycle') behaviour by
- * duplicating the original keyframe cycle across the full layer duration.
- */
 function expandTmCycles(data) {
   const walk = (layers) => {
     if (!Array.isArray(layers)) return;
@@ -118,12 +106,6 @@ function expandTmCycles(data) {
   }
 }
 
-/**
- * Remove any remaining .x (expression) properties so lottie-web does not run the expression
- * evaluator on EDS (which can silently fail and produce empty SVG). We already expanded
- * loopOut in expandTmCycles; this strips wiggle, valueAtTime, etc. so they don't crash.
- * When we hit a cycle we still strip .x on that object so every node gets cleaned.
- */
 function stripRemainingExpressions(obj, seen = new Set()) {
   if (!obj || typeof obj !== 'object') return;
   if (seen.has(obj)) {
@@ -171,7 +153,8 @@ function loadLottieIntoContainer(container) {
   const inner = document.createElement('div');
   inner.className = 'lottie-inner';
   inner.setAttribute('aria-hidden', 'true');
-  inner.style.minHeight = '250px';
+  const isSwivelStyle = container.classList.contains('e-lottie__animation');
+  inner.style.minHeight = isSwivelStyle ? '352px' : '250px';
   inner.style.width = '100%';
   container.appendChild(inner);
 
@@ -198,8 +181,7 @@ function loadLottieIntoContainer(container) {
       const runInit = () => {
         const useCanvas = container.dataset.lottieRenderer === 'canvas';
         const startFrame = 0;
-        const endFrame = animationData.op != null
-          ? Math.ceil(animationData.op) : 857;
+        const endFrame = animationData.op != null ? Math.ceil(animationData.op) : 857;
         const anim = lottie.loadAnimation({
           container: inner,
           renderer: useCanvas ? 'canvas' : 'svg',
@@ -273,33 +255,33 @@ function initLottieWhenVisible(container) {
   }, 500);
 }
 
-function getDefaultDopJsonUrl() {
+function getDefaultJsonUrl() {
   const base = (typeof window !== 'undefined' && window.hlx?.codeBasePath) ? window.hlx.codeBasePath.replace(/\/$/, '') : '';
-  const path = `${base}/blocks/lottie-animation/dop.json`;
+  const path = `${base}/blocks/lottie-animation-v2/voice.json`;
   try {
     return new URL(path, typeof window !== 'undefined' ? window.location.origin : '').href;
   } catch {
-    return '/blocks/lottie-animation/dop.json';
+    return '/blocks/lottie-animation-v2/voice.json';
   }
 }
 
-let lottieBlockCount = 0;
+let lottieV2BlockCount = 0;
 
 export default function decorate(block) {
   const config = readBlockConfig(block);
   const raw = (config.animation && config.animation.trim())
-    ? config.animation.trim() : getDefaultDopJsonUrl();
+    ? config.animation.trim() : getDefaultJsonUrl();
   const jsonUrl = toAbsoluteJsonUrl(raw);
 
-  log('block decorate', jsonUrl);
+  log('block decorate (v2 Voice)', jsonUrl);
 
   const container = document.createElement('div');
-  container.id = `lottie-main-${lottieBlockCount += 1}`;
-  container.className = 'lottie-lazy lottie-container';
+  container.id = `lottie-v2-${lottieV2BlockCount += 1}`;
+  container.className = 'e-lottie__animation lottie-lazy lottie-container';
   container.setAttribute('data-jsonsrc', jsonUrl);
   container.setAttribute('data-lottie-renderer', 'svg');
   container.setAttribute('role', 'img');
-  container.setAttribute('aria-label', 'Deep Observability Pipeline animation');
+  container.setAttribute('aria-label', 'Animation');
 
   block.innerHTML = '';
   block.appendChild(container);
