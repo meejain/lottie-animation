@@ -9,7 +9,7 @@
  */
 import { readBlockConfig } from '../../scripts/aem.js';
 
-const LOTTIE_WEB_SCRIPT = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js';
+const LOTTIE_WEB_SCRIPT = 'https://unpkg.com/lottie-web@5.12.2/build/player/lottie_light.min.js';
 const DEBUG = true; // set false in production; helps trace "Lottie:" in console
 
 function log(...args) {
@@ -28,6 +28,7 @@ function loadScript(src) {
     }
     const script = document.createElement('script');
     script.src = src;
+    script.async = true;
     script.onload = () => { log('script loaded'); resolve(); };
     script.onerror = () => reject(new Error(`Script failed: ${src}`));
     document.body.appendChild(script);
