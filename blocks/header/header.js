@@ -8,7 +8,6 @@ function closeOnEscape(e) {
   if (e.code === 'Escape') {
     const nav = document.getElementById('nav');
     const navSections = nav.querySelector('.nav-sections');
-    if (!navSections) return;
     const navSectionExpanded = navSections.querySelector('[aria-expanded="true"]');
     if (navSectionExpanded && isDesktop.matches) {
       // eslint-disable-next-line no-use-before-define
@@ -26,7 +25,6 @@ function closeOnFocusLost(e) {
   const nav = e.currentTarget;
   if (!nav.contains(e.relatedTarget)) {
     const navSections = nav.querySelector('.nav-sections');
-    if (!navSections) return;
     const navSectionExpanded = navSections.querySelector('[aria-expanded="true"]');
     if (navSectionExpanded && isDesktop.matches) {
       // eslint-disable-next-line no-use-before-define
@@ -59,7 +57,6 @@ function focusNavSection() {
  * @param {Boolean} expanded Whether the element should be expanded or collapsed
  */
 function toggleAllNavSections(sections, expanded = false) {
-  if (!sections) return;
   sections.querySelectorAll('.nav-sections .default-content-wrapper > ul > li').forEach((section) => {
     section.setAttribute('aria-expanded', expanded);
   });
@@ -79,21 +76,19 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
   toggleAllNavSections(navSections, expanded || isDesktop.matches ? 'false' : 'true');
   button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
   // enable nav dropdown keyboard accessibility
-  if (navSections) {
-    const navDrops = navSections.querySelectorAll('.nav-drop');
-    if (isDesktop.matches) {
-      navDrops.forEach((drop) => {
-        if (!drop.hasAttribute('tabindex')) {
-          drop.setAttribute('tabindex', 0);
-          drop.addEventListener('focus', focusNavSection);
-        }
-      });
-    } else {
-      navDrops.forEach((drop) => {
-        drop.removeAttribute('tabindex');
-        drop.removeEventListener('focus', focusNavSection);
-      });
-    }
+  const navDrops = navSections.querySelectorAll('.nav-drop');
+  if (isDesktop.matches) {
+    navDrops.forEach((drop) => {
+      if (!drop.hasAttribute('tabindex')) {
+        drop.setAttribute('tabindex', 0);
+        drop.addEventListener('focus', focusNavSection);
+      }
+    });
+  } else {
+    navDrops.forEach((drop) => {
+      drop.removeAttribute('tabindex');
+      drop.removeEventListener('focus', focusNavSection);
+    });
   }
 
   // enable menu collapse on escape keypress
@@ -106,6 +101,90 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
     window.removeEventListener('keydown', closeOnEscape);
     nav.removeEventListener('focusout', closeOnFocusLost);
   }
+}
+
+/**
+ * Get the icon color class based on icon filename
+ * @param {string} src The icon source URL
+ * @returns {string} The color class name
+ */
+function getIconColorClass(src) {
+  if (src.includes('build')) return 'green';
+  if (src.includes('work')) return 'pink';
+  if (src.includes('world')) return 'purple';
+  return 'black';
+}
+
+/**
+ * Decorates dropdown items with rich content (icon, title, description)
+ * @param {Element} dropdown The dropdown ul element
+ */
+function decorateDropdownItems(dropdown) {
+  const items = dropdown.querySelectorAll(':scope > li');
+  let isFirst = true;
+
+  items.forEach((item) => {
+    const img = item.querySelector('picture, img');
+    const link = item.querySelector('a');
+
+    if (!img || !link) return;
+
+    // Get description text (everything after the link)
+    const fullText = item.textContent;
+    const linkText = link.textContent;
+    const imgAlt = img.querySelector('img')?.alt || img.alt || '';
+    const description = fullText
+      .replace(imgAlt, '')
+      .replace(linkText, '')
+      .trim();
+
+    // Check if this is a featured item (first item with large image)
+    const isFeatured = isFirst && item.closest('li')?.textContent.includes('Documentation')
+      && img.querySelector('img')?.src.includes('featured');
+
+    if (isFeatured) {
+      // Create featured section
+      item.classList.add('dropdown-featured');
+      item.innerHTML = '';
+
+      const featuredImg = document.createElement('div');
+      featuredImg.className = 'dropdown-featured-img';
+      featuredImg.appendChild(img);
+
+      const featuredContent = document.createElement('div');
+      featuredContent.className = 'dropdown-featured-content';
+      featuredContent.innerHTML = `
+        <h3><a href="${link.href}">${linkText}</a></h3>
+        <p>${description}</p>
+      `;
+
+      item.appendChild(featuredImg);
+      item.appendChild(featuredContent);
+    } else {
+      // Create regular dropdown item
+      item.classList.add('dropdown-item');
+      const imgSrc = img.querySelector('img')?.src || img.src || '';
+      const colorClass = getIconColorClass(imgSrc);
+
+      item.innerHTML = '';
+
+      const iconWrapper = document.createElement('div');
+      iconWrapper.className = `dropdown-icon ${colorClass}`;
+      iconWrapper.appendChild(img);
+
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'dropdown-content';
+      contentWrapper.innerHTML = `
+        <h4><a href="${link.href}">${linkText}</a></h4>
+        <p>${description}</p>
+      `;
+
+      item.appendChild(iconWrapper);
+      item.appendChild(contentWrapper);
+    }
+
+    isFirst = false;
+  });
 }
 
 /**
@@ -140,7 +219,39 @@ export default async function decorate(block) {
   const navSections = nav.querySelector('.nav-sections');
   if (navSections) {
     navSections.querySelectorAll(':scope .default-content-wrapper > ul > li').forEach((navSection) => {
-      if (navSection.querySelector('ul')) navSection.classList.add('nav-drop');
+      const subMenu = navSection.querySelector('ul');
+      if (subMenu) {
+        navSection.classList.add('nav-drop');
+
+        // Decorate dropdown items with rich content
+        decorateDropdownItems(subMenu);
+
+        // Add hover handlers for desktop with delay to prevent premature closing
+        let closeTimeout;
+
+        navSection.addEventListener('mouseenter', () => {
+          if (isDesktop.matches) {
+            // Clear any pending close timeout
+            if (closeTimeout) {
+              clearTimeout(closeTimeout);
+              closeTimeout = null;
+            }
+            toggleAllNavSections(navSections);
+            navSection.setAttribute('aria-expanded', 'true');
+          }
+        });
+
+        navSection.addEventListener('mouseleave', () => {
+          if (isDesktop.matches) {
+            // Add a delay before closing to allow moving to dropdown
+            closeTimeout = setTimeout(() => {
+              navSection.setAttribute('aria-expanded', 'false');
+            }, 200);
+          }
+        });
+      }
+
+      // Keep click for mobile and as fallback
       navSection.addEventListener('click', () => {
         if (isDesktop.matches) {
           const expanded = navSection.getAttribute('aria-expanded') === 'true';
