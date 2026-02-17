@@ -178,12 +178,11 @@ function loadLottieIntoContainer(container) {
   inner.style.width = '100%';
   container.appendChild(inner);
 
-  // Script is loaded by delayed.js; block only waits for it (no loadScript here = no TBT on viewport).
   const lottieReady = window.lottie
     && typeof window.lottie.loadAnimation === 'function';
   const scriptPromise = lottieReady
     ? Promise.resolve()
-    : waitForLottie(10000).catch(() => loadScript(LOTTIE_WEB_SCRIPT).then(() => waitForLottie(3000)));
+    : loadScript(LOTTIE_WEB_SCRIPT).then(() => waitForLottie());
 
   scriptPromise
     .then(() => fetch(absoluteUrl))
